@@ -4,17 +4,22 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 import numpy as np
 
-# Specify the path to your video file
-vidpath = 'video.mov'
-
 # Initialize video capture
 vidcap = cv2.VideoCapture(0)
+
+# Camera settings for better performance and reduced motion blur
+vidcap.set(cv2.CAP_PROP_FPS, 144)  # Request 60 FPS if supported
+vidcap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)  # Higher resolution
+vidcap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+vidcap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Reduce buffer to minimize latency
+vidcap.set(cv2.CAP_PROP_AUTOFOCUS, 0)  # Disable autofocus for consistent sharpness
+vidcap.set(cv2.CAP_PROP_EXPOSURE, -3)  # Lower exposure to reduce motion blur (adjusted for brightness)
+vidcap.set(cv2.CAP_PROP_GAIN, 0)  # Increase gain to brighten the image
 
 # Set the desired window width and height
 winwidth = 960
 winheight = 540
 
-# Download the hand landmarker model if not present
 model_path = 'hand_landmarker.task'
 
 # Create HandLandmarker
@@ -37,6 +42,15 @@ HAND_CONNECTIONS = [
     (0, 17), (17, 18), (18, 19), (19, 20),  # Pinky
     (5, 9), (9, 13), (13, 17)  # Palm
 ]
+
+# Fingertip landmark indices
+FINGERTIP_INDICES = {
+    'Thumb': 4,
+    'Index': 8,
+    'Middle': 12,
+    'Ring': 16,
+    'Pinky': 20
+}
 
 # Function to draw landmarks
 def draw_landmarks_on_image(bgr_image, detection_result):
@@ -67,6 +81,9 @@ while vidcap.isOpened():
     if not ret:
         break
 
+    # Mirror the frame horizontally
+    frame = cv2.flip(frame, 1)
+
     # Convert the BGR image to RGB
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     
@@ -79,10 +96,15 @@ while vidcap.isOpened():
     # Draw landmarks on the frame
     if detection_result.hand_landmarks:
         frame = draw_landmarks_on_image(frame, detection_result)
-
-    # Draw landmarks on the frame
-    if detection_result.hand_landmarks:
-        frame = draw_landmarks_on_image(frame, detection_result)
+        
+        # Print fingertip distances from the screen (z-coordinate)
+        for hand_idx, hand_landmarks in enumerate(detection_result.hand_landmarks):
+            print(f"\nHand {hand_idx + 1}:")
+            for finger_name, tip_idx in FINGERTIP_INDICES.items():
+                z_depth = hand_landmarks[tip_idx].z
+                # z is negative when closer, positive when farther
+                # Convert to approximate distance (relative units)
+                print(f"  {finger_name}: {abs(z_depth):.4f} units from screen")
 
     # Resize the frame to the desired window size
     resized_frame = cv2.resize(frame, (winwidth, winheight))
